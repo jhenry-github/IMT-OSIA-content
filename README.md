@@ -1,1 +1,1 @@
-# IMT-OSIA-2025-content
+# IMT-OSIA-content
