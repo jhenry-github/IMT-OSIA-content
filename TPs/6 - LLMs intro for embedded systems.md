@@ -88,7 +88,7 @@ As in many of the previous labs, we fix the 'randomness' of the random numbers w
 
 ## 2. Dataset: Embedded‑Style Device Logs
 
-Language models learn by predicting the next symbol in a sequence. Just like  alinear regressor predicts the value y on a line fromn an input x, the LLM predicts a symbol y from receiving as input a symbol x. So the goal of the LLM is to learn sequences of symbols. In many cases, the symbols are letters in a natural language sentence (letters, or entire words, and this is how the LLM knows that in the sequence 'Appollo 11 landed on the ...', the next word is likely to be 'moon', because if your training set contains multiple books on any topic, the most common next word (highest probability) will be 'moon'.
+Language models learn by predicting the next symbol in a sequence. Just like  alinear regressor predicts the value y on a line fromn an input x, the LLM predicts a symbol y from receiving as input a symbol x. So the goal of the LLM is to learn sequences of symbols. In many cases, the symbols are letters in a natural language sentence (letters, or entire words, and this is how the LLM knows that in the sequence 'Apollo 11 landed on the ...', the next word is likely to be 'moon', because if your training set contains multiple books on any topic, the most common next word (highest probability) will be 'moon'.
 
 in this lab, we could use English sentence, but as we are in the world of embedded systems, our words could instead be IoT-related messages. So instead of natural language, we will use embedded device logs, which:
 
@@ -144,23 +144,19 @@ for ch in chars:
     print(f"'{ch}' -> {stoi[ch]}")
 ```
 
-Now our text units (letters) have been converted to tokens (vectors/numbers). This type of transformation is somehwat similar to other AIML techniques where you take some input (e.g., some sensor value) and convert them to some numbers that the AIML process can deal with (quantization, Mel spectrogram transformation of  
+You can see that each character now has a unique ID (its number value). Now our text units (letters) have been converted to tokens (vectors/numbers). This type of transformation is somewhat similar to other AIML techniques where you take some input (e.g., some sensor value) and convert them to some numbers that the AIML process can deal with (for example quantization, or Mel spectrogram transformation that then converts pixels to numbers).
 
+## 4. Training Data Construction
 
+The task of a language model is nothing more than:
 
-Then, tokenization 
+    Given the current token, predict the next token.
 
-This is similar to:
+This prediction can be used in manyw ways, from chatbot dialog to summarization or translation. These various goals are enabled by post training steps, or by the dataset used to train the model. But this general task is identical to time series predictions, or sequence modeling in sensor data (given the current value, predict another value).
 
-    Quantizing sensor values
-    Mapping categorical inputs to integers
+So now that we have a vocabulary (in a numeric form that the machine can process), the next step is to train the model, which in essence is still feeding the model with input and expected output pairs, so the model learns the numerical relationship between a given input value and the expected output value.
 
-Goal:
-Convert text into numerical form that a neural network can process.
+In a real, large language model, you would feed entire sentences (okay, "groups of tokens") into the model, and in essence (working in fact at token levels) the model would learn, from "Apollo 11 landed on the moon", that if we send "Apollo landed on the", the most likely contunation is "moon", and if we say "... landed on the moon", the most likely missing word is "Apollo". Feed millions of sentences, and the model learns probabilities between a given sequence of words and the likely preceding or continuing sequence.
 
-What to observe:
-
-    Vocabulary size is small
-    Every character gets a unique ID
 
 
