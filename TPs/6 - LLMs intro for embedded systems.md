@@ -116,8 +116,51 @@ print(text)
 
 You can observe that our vacabulary is very small, and yet the pattern is very repetitive. Not only some words tend to come back often (just like in the English language), but also the sequence of letters is limited (something that starts with 'I' is likely to be 'IDLE'). In the English language, there is more variety of course, but the same principle appplies (and the LLMs operate at syllable level): if your sequence starts with moo..., there is a high probability that the word will be 'moon'.
 
+## 3. Tokenization (Character‑Level)
+
+LLMs do not operate on full words, they operate on tokens. Tokens are numbers (usually in fact, vectors of numbers) that are numerical representation of a piece of text. We use numbers because we can run mathematical operations on them. In most cases, a single token is a group of a few letters, but in simplified cases and in complex languages, the token may be down to a single character. Let's adopt this idea and decide that here, each character is a token. 
+
+So our next step is tokenize the text we have, that is convert each unit of text (each character) into a vector (in this case, a single number). A first step is of course to parse the text, and find individual tokens. With more complex tokenization techniques, we first find groups of letters to group together (based on multiple types of criteria). Here, we simply find the letters in our vocabulary, and we just list them:
+
+```
+
+chars = sorted(list(set(text)))
+vocab_size = len(chars)
+
+stoi = {ch: i for i, ch in enumerate(chars)}
+itos = {i: ch for ch, i in stoi.items()}
+
+encoded = [stoi[c] for c in text]
+
+print("Vocabulary:", chars)
+print("Vocabulary size:", vocab_size)
+```
+
+You see that our vocabulary is small. It may be interesting to see the tokenization result, i.e., see the token value of each unit of our vocabulary. In practice, we do not care about that value (and a standard LLM may end up with 40,000 tokens, so this would be too much to print), but for curiosity sake, we cane check what tokens we obtained:
+
+```
+print("\nCharacter → Token ID mapping:")
+for ch in chars:
+    print(f"'{ch}' -> {stoi[ch]}")
+```
+
+Now our text units (letters) have been converted to tokens (vectors/numbers). This type of transformation is somehwat similar to other AIML techniques where you take some input (e.g., some sensor value) and convert them to some numbers that the AIML process can deal with (quantization, Mel spectrogram transformation of  
+
+
+
+Then, tokenization 
+
+This is similar to:
+
+    Quantizing sensor values
+    Mapping categorical inputs to integers
+
+Goal:
+Convert text into numerical form that a neural network can process.
+
 What to observe:
 
-    Very small vocabulary
-    Repetitive patterns
+    Vocabulary size is small
+    Every character gets a unique ID
+
 
