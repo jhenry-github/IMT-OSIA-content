@@ -156,7 +156,10 @@ This prediction can be used in manyw ways, from chatbot dialog to summarization 
 
 So now that we have a vocabulary (in a numeric form that the machine can process), the next step is to train the model, which in essence is still feeding the model with input and expected output pairs, so the model learns the numerical relationship between a given input value and the expected output value.
 
-In a real, large language model, you would feed entire sentences (okay, "groups of tokens") into the model, and in essence (working in fact at token levels) the model would learn, from "Apollo 11 landed on the moon", that if we send "Apollo landed on the", the most likely contunation is "moon", and if we say "... landed on the moon", the most likely missing word is "Apollo". Feed millions of sentences, and the model learns probabilities between a given sequence of words and the likely preceding or continuing sequence.
+In a real, large language model, you would feed entire sentences (okay, "groups of tokens") into the model, and in essence (working in fact at token levels) the model would learn, from "Apollo 11 landed on the moon", that if we send "Apollo landed on the ...", the most likely continuation is "moon", and if we say "... landed on the moon", the most likely missing word is "Apollo". Feed millions of sentences, and the model learns probabilities between a given sequence of words and the likely preceding or continuing sequence.
+
+So how do we train a model this way, in practice? Using our toy example, the training is simply about sending to our model a token (a character), and telling it "if I give you this token (this value), then the right answer (the token you need to output) is that token". We take each string in our vocabulary, and we inject it with this logic into the model. For example, one string is "IDLE", so we tell the model:
+
 
 
 
