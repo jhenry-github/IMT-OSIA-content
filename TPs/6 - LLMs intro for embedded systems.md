@@ -278,7 +278,7 @@ However, observe:
     Model reproduces learned structure
 
 
-We inject a character ('S'), then ask the model to generate the next ones (each end-of-sequence results in next line), for 200 chracters:
+We inject a character ('S'), then ask the model to generate the next ones (each end-of-sequence results in next line), for 200 characters:
 
 ```
 
@@ -297,3 +297,129 @@ def generate_text(start_char, length=200):
 
 print(generate_text('S'))
 ```
+
+## 8. Playing with temperature
+
+In LLMs (and generative models in general), temperature controls the randomness in generation. You apply a "temperature" exponent to the last layers of the model and, in essence, the model predicts the next best token very stricly (low temperature -> return the token with the highest probability), or more losely (higher temperature -> return any token which probability is higher than {whatever the temperature coefficient results into}, even if it is not the 'highst probability' token). 
+
+Temperature is useful, especially for LLMs that are supposed to dialog with the user, because it allows the model to form slightly different responses, even if the same question is asked twice. Temperature provides this impression that the model "thinks" because its answers are not mechanical. In models that needs to provide deterministic (even if 'boring') answers, temperature is set low, in models that need to be creative, temperature is higher. In short:
+
+    Low temperature → predictable
+    High temperature → creative but unstable
+
+In our Apollo example, a model with low temperature, when receiving "Apollo", would always respond "11", because this is the most well-known Apollo mission. A model with a higher temperature would compute that possible tokens with reasonably high probability could be "11" (highest probability), "13" (the mission that had an issue withe the famous "Houston we have a problem" - good probability, but lower than 11), or "1" (the first Apollo experiment, famous because a fire killed all the astronauts in the module - good probability). The model would then randmly pick one of these 'good-probability tokens' and return it.
+
+Temperature is useful, but too much of it is bad:
+
+    Too much randomness breaks structure
+    Too little randomness causes repetition
+
+See how this principle applies to our toy model:
+
+```
+def generate_with_temperature(start_char, length=200, temperature=1.0):
+    idx = stoi[start_char]
+    output = start_char
+
+    for _ in range(length):
+        x = torch.tensor([idx])
+        logits = model(x) / temperature
+        probs = torch.softmax(logits, dim=1).detach().numpy()[0]
+        idx = np.random.choice(len(probs), p=probs)
+        output += itos[idx]
+
+    return output
+
+print("Low temperature:")
+print(generate_with_temperature('S', temperature=0.5))
+
+print("\nHigh temperature:")
+print(generate_with_temperature('S', temperature=1.5))
+```
+
+Try to play with the temperature values (in practice, most chatbot temperature is between 1 and 2, anything beyond 2 starts being silly, anything above 3 usually renders the model unusable).
+
+## 9. Embedded Reality Check: Memory & Compute
+
+Now we answer the key question: could we run this on a microcontroller like the XG24? Let's look at this model size:
+
+```
+params = sum(p.numel() for p in model.parameters())
+memory_kb = params * 4 / 1024
+
+print("Total parameters:", params)
+print(f"Model size (float32): {memory_kb:.2f} KB")
+```
+
+Less than 10 KB! It could easily fit on our board. But don't get fooled. This is just a toy model. Our current model:
+    - Sees **one character at a time**
+    - Has **no memory of previous characters**
+    - Has **no attention**
+    - Has **no notion of context**
+
+Real language models differ in three key ways:
+
+    1. **Context window** (many tokens at once)
+    2. **Embedding dimension** (hundreds or thousands)
+    3. **Attention layers** (quadratic memory and compute)
+
+let's estimate what happens when we scale toward a *real* LLM. A first step is to scale up our neural network to some more realistic numbers:
+
+```
+def estimate_mlp_lm_params(vocab_size, embed_dim, hidden_dim, layers):
+    # Embedding
+    params = vocab_size * embed_dim
+    
+    # Hidden layers
+    params += embed_dim * hidden_dim
+    params += (layers - 1) * hidden_dim * hidden_dim
+    params += hidden_dim * vocab_size
+    
+    return params
+
+vocab_size = 256          # realistic char / byte-level vocab
+embed_dim = 256
+hidden_dim = 512
+layers = 4
+
+params = estimate_mlp_lm_params(vocab_size, embed_dim, hidden_dim, layers)
+memory_mb = params * 4 / (1024 ** 2)
+
+print("Scaled MLP Language Model")
+print("Total parameters:", params)
+print(f"Model size (float32): {memory_mb:.2f} MB")
+```
+
+The amount of RAM you get on a constrained board is in the order of 256-512 KB. This 'more realistic' neural network structure is already 4 to 8 times larger than the total amount of RAM you can get on a board.... and that's just a single neural network. In a real network, there are multiple neural networks working in parallel, to learn not only the next/previous character relationships like in our example, but also the farther characters relationships (L with I in IDLE, as we saw above), so that the model can process entire words or sentences. In practice, this parallel structure is called Attention. Attention allows the model not only to learn distant relationship, but also to look at **all tokens in the context window** (the string you inject into the model), thus considering all relationshipsat the same time, and forming an efficient guess on how to continue the dialog.
+
+This gives LLMs:
+- Memory
+- Reasoning
+- Long-range dependencies
+
+But attention scales as:
+
+O(sequence_length² × embedding_dim)
+
+Let's estimate the memory required just for attention activation on our 'more realistic' model. The size of the model, for the inference part, depends very much on how many tokens you want the model to consider simultaneously. In our toy example, we inject one token at a time to illustrate the principle, but in real deployment this would be unusable. It would be as if you injected "A", hoping that the model would guess "Apollo landed on the moon". Just like in a chatbot, you need to be able to inject "at least a few words" for some context to appear. Even in our limited-vocabulary example, you would want to inject "STATE=" to get the most likely state, or even "RECOG..." to get RECOGNIZED=YES.
+
+```
+def attention_activation_memory(seq_len, embed_dim, bytes_per_value=4):
+    # Q, K, V matrices
+    qkv = 3 * seq_len * embed_dim
+    
+    # Attention matrix (seq_len x seq_len)
+    attention = seq_len * seq_len
+    
+    total_values = qkv + attention
+    memory_bytes = total_values * bytes_per_value
+    return memory_bytes / (1024 ** 2)
+
+for seq_len in [32, 64, 128, 256]:
+    mem = attention_activation_memory(seq_len, embed_dim=256)
+    print(f"Sequence length {seq_len:3d}: Attention activations ≈ {mem:.2f} MB")
+```
+
+You can see that as soon as you want to allow more than 100 characters for input, the model size explodes beyond 5 MB. This memory is required just to run one forward pass, not counting weights, stack, heap, or firmware. This is why no one runs LLMs on microcontrollers today (until new optimization techniques are invented to squeeze the model size, at least in memory). By contrast, our keyword-spotting neural network was much smaller, because its output was targeted (recognize a few words) and deterministic (classify the audio to 3 or 4 categories)
+
+
