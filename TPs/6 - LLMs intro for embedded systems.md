@@ -158,8 +158,142 @@ So now that we have a vocabulary (in a numeric form that the machine can process
 
 In a real, large language model, you would feed entire sentences (okay, "groups of tokens") into the model, and in essence (working in fact at token levels) the model would learn, from "Apollo 11 landed on the moon", that if we send "Apollo landed on the ...", the most likely continuation is "moon", and if we say "... landed on the moon", the most likely missing word is "Apollo". Feed millions of sentences, and the model learns probabilities between a given sequence of words and the likely preceding or continuing sequence.
 
-So how do we train a model this way, in practice? Using our toy example, the training is simply about sending to our model a token (a character), and telling it "if I give you this token (this value), then the right answer (the token you need to output) is that token". We take each string in our vocabulary, and we inject it with this logic into the model. For example, one string is "IDLE", so we tell the model:
+So how do we train a model this way, in practice? Using our toy example, the training is simply about sending to our model a token (a character), and telling it "if I give you this token (this value), then the right answer (the token you need to output) is that token". We take each string in our vocabulary, and we inject it with this logic into the model. For example, we encoded this string as follows:
+
+S T A T E = I D L E \n
+↓ ↓ ↓ ↓ ↓   ↓ ↓ ↓ ↓
+12 13 2 13 5 1 7 4 8 5 0
 
 
+In order to train the model, we send the string, character by character (starting from the first one, till the second-to-last one, as there is no character to predict, just a 'stop' decision, if we send the last one). Then for each character we send (for example the first 'S'), we return to the model the right response, which is the next character in the string (in this example, 'T'). Then we send the next character ('T') and tell the model the right response ('A'), etc. Of course, we work with tokens, not the chracters directly, so we send "if 12 -> 13", then "if 13 -> 2", then "if 2 -> 13" etc.
+
+So here, we for the list of inputs (from the first character to the second-to-last one), and the expected output (from the second character, i.e. the correct response if we send the first character), to the last character (the correct response if we send the second-to-last chracter).
+
+We repeat that operation for all strings in our vocabulary:
+
+```
+
+X = encoded[:-1]
+Y = encoded[1:]
+
+print("First 10 input tokens:", X[:10])
+print("First 10 target tokens:", Y[:10])
+```
+
+Now that we have our list of inputs (X) and expected outputs (Y), we can move to the training phase.
+
+## 5. The Model: A Tiny Language Model
+
+The training phase occurs with a classical neural network, where the input is X and the correct output Y. The model then learns the relationships between Y and X. As both are tokens (numeric representation of our chracters), the system can use the techniques that you now understand well to simply find the correct weights/coefficients between each element of X we inject and the correct element of Y.
+
+In more details, this neural network:
+
+    Takes one token as input
+    Outputs probabilities for the next token
+    Compares its output (with current weight) to the expected output (matching Y element)
+    Uses back-ropagation to adjust the weight.
+    Uses a hidden layer, just like your keyword‑spotting NN
+
+Important:
+This is a language model. There is no transformer, attention, or magic. We could build a more complicated structure, but its principles would eb the same. The more complicated structure may have smarter ways of constructing the relationship between X and Y (with transformers, for example, using multiple neural networks in parallel, with multi-dimensional vector representations of each token, which would allow the set of neural networks to not only learn the relationship in IDLE between I and D, D and L etc., but also between L and I, E and D, E and I etc.) The more complicated structure would be more efficient, but with the same general principles.
+
+Observe the structure of the neural network and note:
+
+    Embedding layer
+    Fully connected layers
+    Softmax output
+
+```
+
+hidden_size = 64
+
+class TinyCharLM(nn.Module):
+    def __init__(self, vocab_size, hidden_size):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, vocab_size)
+        self.fc1 = nn.Linear(vocab_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, vocab_size)
+
+    def forward(self, x):
+        x = self.embedding(x)
+        x = torch.relu(self.fc1(x))
+        return self.fc2(x)
+
+model = TinyCharLM(vocab_size, hidden_size)
+loss_fn = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.01)
+
+model
+```
 
 
+## 6. Training the Language Model
+
+We have defined the model, let's now train it to minimize cross‑entropy loss, the same loss used in:
+
+    Classification
+    Keyword spotting
+
+Observe the model learning character‑to‑character transitions:
+
+    Loss decreases steadily
+    Training is fast because the model is tiny (although we have 400 epochs)
+
+```
+
+epochs = 400
+
+for epoch in range(epochs):
+    total_loss = 0.0
+    for x, y in zip(X, Y):
+        x = torch.tensor([x])
+        y = torch.tensor([y])
+
+        optimizer.zero_grad()
+        logits = model(x)
+        loss = loss_fn(logits, y)
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+
+    if epoch % 50 == 0:
+        print(f"Epoch {epoch:3d} | Loss: {total_loss:.4f}")
+```
+
+
+## 7. Text Generation (The Generative Moment)
+
+Our model is trained, it can predict next tokens. The way it works is the same as other LLMs. Generation works by:
+
+    Feeding a starting token
+    Sampling the next token from the output probabilities
+    Repeating
+
+This is exactly how large language models generate text. In LLMs, there is often a sort of interface to the user, where the user injects the first tokens (the question you ask to your chatbot). Here, we do not want to design a chatbot interface, just see the principles. Also, our vocabulary is minuscule, so it is highly biased. Some characters have only one solution ('Z' only appears in RECOGNIZED, so if you feed Z, the only possible character is 'E'). Other characters appears about everywhere, and therefore many chracters can be 'the next one', with the same probability (for example, 'E' is in STATE=, RECOGNIZED, IDLE, STATE... if you inject 'E', there are multiple possibilities, including 'stop there' ('EOS', End of Sequence). So be tolerant if the predictor goes a bit all over the place.  
+
+However, observe:
+
+    Output resembles device logs
+    Model reproduces learned structure
+
+
+We inject a character ('S'), then ask the model to generate the next ones (each end-of-sequence results in next line), for 200 chracters:
+
+```
+
+def generate_text(start_char, length=200):
+    idx = stoi[start_char]
+    output = start_char
+
+    for _ in range(length):
+        x = torch.tensor([idx])
+        logits = model(x)
+        probs = torch.softmax(logits, dim=1).detach().numpy()[0]
+        idx = np.random.choice(len(probs), p=probs)
+        output += itos[idx]
+
+    return output
+
+print(generate_text('S'))
+```
