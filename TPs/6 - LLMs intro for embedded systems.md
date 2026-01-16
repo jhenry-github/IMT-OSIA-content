@@ -298,6 +298,8 @@ def generate_text(start_char, length=200):
 print(generate_text('S'))
 ```
 
+Feel free to insert, instead of S, any other letter in our vocabulary, and see the output differences.
+
 ## 8. Playing with temperature
 
 In LLMs (and generative models in general), temperature controls the randomness in generation. You apply a "temperature" exponent to the last layers of the model and, in essence, the model predicts the next best token very stricly (low temperature -> return the token with the highest probability), or more losely (higher temperature -> return any token which probability is higher than {whatever the temperature coefficient results into}, even if it is not the 'highst probability' token). 
